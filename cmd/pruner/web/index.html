@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>X Following Pruner</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <main>
+    <header>
+      <p class="eyebrow">X Following Pruner</p>
+      <h1>Follow fewer people, deliberately.</h1>
+      <p class="lede">Import your following list, inspect it locally, and decide what to do next. Nothing happens automatically.</p>
+    </header>
+    <section>
+      <h2>Start here</h2>
+      <ol>
+        <li>Set <code>X_BEARER_TOKEN</code> and <code>X_USERNAME</code> in <code>.env.local</code>.</li>
+        <li>Run <code>go run ./cmd/pruner fetch-following</code>.</li>
+        <li>Explore <code>data/following.json</code>.</li>
+      </ol>
+    </section>
+    <aside><strong>Guardrail</strong><p>This importer only reads your data from X. It does not follow or unfollow anyone.</p></aside>
+  </main>
+</body>
+</html>

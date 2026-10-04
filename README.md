@@ -1,42 +1,39 @@
 # X Following Pruner
 
-A personal, policy-safe X following manager. This first step imports your whole following list into a local JSON file so you can inspect and experiment with it.
+A personal, policy-safe X following manager written in Go. It imports your complete following list into a local JSON snapshot for experimentation.
 
 ## Setup
 
 1. Create an X developer app and copy its Bearer Token.
-2. Copy the example config and fill it in:
+2. Copy the local config:
 
    ```bash
    cp .env.example .env.local
    ```
 
-   Set `X_BEARER_TOKEN` and your `X_USERNAME` (without the `@`).
+3. Set `X_BEARER_TOKEN` and `X_USERNAME` (without the `@`).
 
-3. Fetch your following list:
+## Import your following list
 
-   ```bash
-   npm run fetch:following
-   ```
+```bash
+go run ./cmd/pruner fetch-following
+```
 
 This writes `data/following.json`, which stays local and is ignored by Git.
 
-## Run the UI
+## Run the local UI
 
 ```bash
-npm run dev
+go run ./cmd/pruner serve
 ```
 
 Open http://localhost:3000.
 
-## Commands
+## Verify
 
 ```bash
-npm test          # checks following-list pagination without calling X
-npm run lint
-npm run build
+go test ./...
+go build ./cmd/pruner
 ```
 
-The importer only reads data. OAuth and any unfollow action remain deliberately out of scope for now.
-
-See [ARCHITECTURE.md](./ARCHITECTURE.md) for API cost and rate-limit constraints.
+The importer only reads X data. OAuth and unfollow actions remain out of scope for now.
