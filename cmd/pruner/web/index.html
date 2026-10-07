@@ -3,17 +3,17 @@
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Following, mapped</title><link rel="stylesheet" href="/style.css"></head>
 <body>
 <main>
-  <header><p class="eyebrow">X Following Pruner</p><h1>Following,<br>mapped.</h1><p class="lede">A small atlas of the people you keep up with.</p><a class="button" href="/auth">Import from X</a></header>
+  <header class="masthead"><div><p class="eyebrow">X Following Pruner</p><h1>Your following, <em>organized.</em></h1><p class="lede">Search the people you follow, group the graph, then let Jev find the ones that matter for a specific question.</p></div><a class="button" href="/auth">Refresh from X</a></header>
   <section id="empty" class="empty"><strong>Your map is waiting.</strong><p>Connect X once to import your following list. The snapshot stays in <code>data/following.json</code> on this machine.</p></section>
   <section id="dashboard" hidden>
-    <div class="stats"><div><b id="count">—</b><span>following</span></div><div><b id="median">—</b><span>median followers</span></div><div><b id="recent">—</b><span>joined in 3 years</span></div></div>
-    <div class="controls">
+    <div class="overview"><div><p class="eyebrow">Your map</p><h2>Start broad. Narrow with intent.</h2></div><div class="stats"><div><b id="count">—</b><span>following</span></div><div><b id="median">—</b><span>median followers</span></div><div><b id="recent">—</b><span>joined in 3 years</span></div></div></div>
+    <section class="workspace"><div class="workspace-head"><div><p class="eyebrow">Explore</p><h2>Find the right accounts</h2></div><p>Filters shape the list. Jev ranks what matches your prompt.</p></div><div class="controls">
       <label>Search <input id="search" type="search" placeholder="name or @handle"></label>
       <label>Sort <select id="sort"><option value="followers">Most followed</option><option value="newest">Newest accounts</option><option value="oldest">Oldest accounts</option><option value="name">Name</option></select></label>
       <label>Cluster <select id="cluster"><option value="tier">Follower tier</option><option value="age">Account age</option><option value="none">No clusters</option></select></label>
     </div>
     <div id="filters" class="filters" aria-label="Quick filters"></div>
-    <section class="jev"><label for="instruction">Ask Jev about these accounts</label><div><input id="instruction" placeholder="e.g. Find people building beautiful developer tools"><button id="ask-jev">Find matches</button><button id="scan-all" class="secondary">Scan all</button></div><p id="jev-status">Find matches analyzes 150 accounts; Scan all batches your full current filter.</p><div id="jev-results" class="people" hidden></div></section>
+    <section class="jev"><label for="instruction">Ask Jev about this filtered set</label><div><input id="instruction" placeholder="e.g. Find people building beautiful developer tools"><button id="ask-jev">Find matches</button><button id="scan-all" class="secondary">Scan all</button></div><p id="jev-status">Find matches analyzes 150 accounts; Scan all batches your full current filter.</p><div id="jev-results" class="people" hidden></div></section></section>
     <div id="atlas" class="atlas" aria-live="polite"></div>
     <article id="detail" hidden></article>
   </section>
