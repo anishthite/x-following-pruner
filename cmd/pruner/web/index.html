@@ -13,7 +13,7 @@
       <label>Cluster <select id="cluster"><option value="tier">Follower tier</option><option value="age">Account age</option><option value="none">No clusters</option></select></label>
     </div>
     <div id="filters" class="filters" aria-label="Quick filters"></div>
-    <section class="jev"><label for="instruction">Ask Jev about this filtered set</label><div><input id="instruction" placeholder="e.g. Find people building beautiful developer tools"><button id="ask-jev">Find matches</button><button id="scan-all" class="secondary">Scan all</button></div><p id="jev-status">Find matches analyzes 150 accounts; Scan all batches your full current filter.</p><div id="jev-results" class="results-grid" hidden></div></section></section>
+    <section class="jev"><label for="instruction">Ask Jev about this filtered set</label><div><input id="instruction" placeholder="e.g. Find people building beautiful developer tools"><button id="ask-jev">Find matches</button><button id="scan-all" class="secondary">Scan all</button></div><p id="jev-status">Find matches analyzes 150 accounts; Scan all batches your full current filter.</p><div id="jev-results" class="results-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px" hidden></div></section></section>
     <div id="atlas" class="atlas" aria-live="polite"></div>
   </section>
 </main>
@@ -47,7 +47,7 @@ fetch('/api/following').then(r => r.ok ? r.json() : Promise.reject()).then(snaps
     copy.append(name, handle, metric); link.append(image, initials, copy); return link;
   }
   function resultCard(u, match) {
-    const link = card(u); link.classList.add('result-card'); link.querySelector('.person-copy').append(make('span', 'score', `${Math.round(match.score * 100)}% match`)); return link;
+    const link = card(u); link.classList.add('result-card'); link.style.cssText = 'align-items:center;background:var(--paper);border:1px solid var(--line);border-radius:6px;display:flex;gap:10px;min-height:74px;min-width:0;padding:12px;text-decoration:none'; link.querySelector('.person-copy').append(make('span', 'score', `${Math.round(match.score * 100)}% match`)); return link;
   }
   let currentVisible = [];
   async function askJev(scanAll = false) {
