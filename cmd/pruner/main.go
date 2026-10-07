@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/rand"
 	"crypto/sha256"
 	"embed"
@@ -14,6 +15,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 )
@@ -47,11 +49,41 @@ type tokenResponse struct {
 }
 
 type server struct {
-	client       *http.Client
-	clientID     string
-	clientSecret string
-	state        string
-	verifier     string
+	client        *http.Client
+	clientID      string
+	clientSecret  string
+	openRouterKey string
+	openRouterURL string
+	jevModel      string
+	state         string
+	verifier      string
+}
+
+type profile struct {
+	ID          string `json:"id"`
+	Username    string `json:"username"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	CreatedAt   string `json:"created_at"`
+	Verified    bool   `json:"verified"`
+	Metrics     struct {
+		Followers int `json:"followers_count"`
+	} `json:"public_metrics"`
+}
+
+type jevRequest struct {
+	Instruction string   `json:"instruction"`
+	IDs         []string `json:"ids"`
+}
+
+type jevMatch struct {
+	ID     string  `json:"id"`
+	Reason string  `json:"reason"`
+	Score  float64 `json:"score"`
+}
+
+type jevResult struct {
+	Matches []jevMatch `json:"matches"`
 }
 
 func get(client *http.Client, endpoint, token string, target any) error {
@@ -254,6 +286,100 @@ func following(writer http.ResponseWriter, _ *http.Request) {
 	writer.Write(contents)
 }
 
+func (app *server) jev(writer http.ResponseWriter, request *http.Request) {
+	if request.Method != http.MethodPost {
+		http.Error(writer, "POST required", http.StatusMethodNotAllowed)
+		return
+	}
+	if app.openRouterKey == "" {
+		http.Error(writer, "Set OPENROUTER_API_KEY in .env.local", http.StatusServiceUnavailable)
+		return
+	}
+	var input jevRequest
+	if err := json.NewDecoder(request.Body).Decode(&input); err != nil || strings.TrimSpace(input.Instruction) == "" || len(input.IDs) == 0 || len(input.IDs) > 150 {
+		http.Error(writer, "Provide an instruction and 1–150 account IDs.", http.StatusBadRequest)
+		return
+	}
+	contents, err := os.ReadFile("data/following.json")
+	if err != nil {
+		http.Error(writer, "Import your following list first.", http.StatusNotFound)
+		return
+	}
+	var source snapshot
+	if err := json.Unmarshal(contents, &source); err != nil {
+		http.Error(writer, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	wanted := map[string]bool{}
+	for _, id := range input.IDs {
+		wanted[id] = true
+	}
+	candidates := []profile{}
+	for _, raw := range source.Following {
+		var account profile
+		if json.Unmarshal(raw, &account) == nil && wanted[account.ID] {
+			candidates = append(candidates, account)
+		}
+	}
+	questions := map[string]any{}
+	for _, candidate := range candidates {
+		questions[candidate.ID] = map[string]any{
+			"type": "noul", "instructions": fmt.Sprintf("Does the account with ID %q match this instruction: %s", candidate.ID, input.Instruction),
+			"criteria": map[string]string{"true": "The account matches the instruction from its provided profile.", "false": "The account does not match, or the profile lacks enough evidence."},
+		}
+	}
+	body, _ := json.Marshal(map[string]any{"model": app.jevModel, "state": map[string]any{"accounts": candidates}, "questions": questions})
+	endpoint := strings.TrimRight(strings.TrimSuffix(app.openRouterURL, "/v1"), "/") + "/alpha/decisions"
+	apiRequest, err := http.NewRequest(http.MethodPost, endpoint, bytes.NewReader(body))
+	if err != nil {
+		http.Error(writer, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	apiRequest.Header.Set("Authorization", "Bearer "+app.openRouterKey)
+	apiRequest.Header.Set("Content-Type", "application/json")
+	response, err := app.client.Do(apiRequest)
+	if err != nil {
+		http.Error(writer, err.Error(), http.StatusBadGateway)
+		return
+	}
+	defer response.Body.Close()
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		body, _ := io.ReadAll(response.Body)
+		http.Error(writer, string(body), http.StatusBadGateway)
+		return
+	}
+	var decision struct {
+		Answers map[string]struct {
+			Type string  `json:"type"`
+			Noul float64 `json:"noul"`
+		} `json:"answers"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&decision); err != nil {
+		http.Error(writer, "Jev returned invalid JSON", http.StatusBadGateway)
+		return
+	}
+	var result jevResult
+	for id, answer := range decision.Answers {
+		if answer.Type == "noul" && answer.Noul >= .5 {
+			result.Matches = append(result.Matches, jevMatch{ID: id, Reason: fmt.Sprintf("Jev match %.0f%%", answer.Noul*100), Score: answer.Noul})
+		}
+	}
+	sort.Slice(result.Matches, func(i, j int) bool { return result.Matches[i].Score > result.Matches[j].Score })
+	allowed := map[string]bool{}
+	for _, candidate := range candidates {
+		allowed[candidate.ID] = true
+	}
+	filtered := result.Matches[:0]
+	for _, match := range result.Matches {
+		if allowed[match.ID] {
+			filtered = append(filtered, match)
+		}
+	}
+	result.Matches = filtered
+	writer.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(writer).Encode(result)
+}
+
 func serve() error {
 	if err := loadEnvFile(".env.local"); err != nil {
 		return err
@@ -270,14 +396,25 @@ func serve() error {
 	if err != nil {
 		return err
 	}
-	app := &server{client: http.DefaultClient, clientID: clientID, clientSecret: clientSecret}
+	app := &server{
+		client: http.DefaultClient, clientID: clientID, clientSecret: clientSecret,
+		openRouterKey: os.Getenv("OPENROUTER_API_KEY"), openRouterURL: envOr("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"), jevModel: envOr("JEV_MODEL", "~typesafe/jev-latest"),
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/auth", app.authorize)
 	mux.HandleFunc("/auth/callback", app.callback)
 	mux.HandleFunc("/api/following", following)
+	mux.HandleFunc("/api/jev", app.jev)
 	mux.Handle("/", http.FileServer(http.FS(subtree)))
 	fmt.Println("Serving http://localhost:3000")
 	return http.ListenAndServe(":3000", mux)
+}
+
+func envOr(name, fallback string) string {
+	if value := os.Getenv(name); value != "" {
+		return value
+	}
+	return fallback
 }
 
 func main() {
