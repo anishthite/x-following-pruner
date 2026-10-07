@@ -1,27 +1,70 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>X Following Pruner</title>
-  <link rel="stylesheet" href="/style.css">
-</head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Following, mapped</title><link rel="stylesheet" href="/style.css"></head>
 <body>
-  <main>
-    <header>
-      <p class="eyebrow">X Following Pruner</p>
-      <h1>Follow fewer people, deliberately.</h1>
-      <p class="lede">Import your following list, inspect it locally, and decide what to do next. Nothing happens automatically.</p>
-    </header>
-    <section>
-      <h2>Start here</h2>
-      <ol>
-        <li>Set <code>X_BEARER_TOKEN</code> and <code>X_USERNAME</code> in <code>.env.local</code>.</li>
-        <li>Run <code>go run ./cmd/pruner fetch-following</code>.</li>
-        <li>Explore <code>data/following.json</code>.</li>
-      </ol>
-    </section>
-    <aside><strong>Guardrail</strong><p>This importer only reads your data from X. It does not follow or unfollow anyone.</p></aside>
-  </main>
-</body>
-</html>
+<main>
+  <header><p class="eyebrow">X Following Pruner</p><h1>Following,<br>mapped.</h1><p class="lede">A small atlas of the people you keep up with.</p><a class="button" href="/auth">Import from X</a></header>
+  <section id="empty" class="empty"><strong>Your map is waiting.</strong><p>Connect X once to import your following list. The snapshot stays in <code>data/following.json</code> on this machine.</p></section>
+  <section id="dashboard" hidden>
+    <div class="stats"><div><b id="count">—</b><span>following</span></div><div><b id="median">—</b><span>median followers</span></div><div><b id="recent">—</b><span>joined in 3 years</span></div></div>
+    <div class="controls">
+      <label>Search <input id="search" type="search" placeholder="name or @handle"></label>
+      <label>Sort <select id="sort"><option value="followers">Most followed</option><option value="newest">Newest accounts</option><option value="oldest">Oldest accounts</option><option value="name">Name</option></select></label>
+      <label>Cluster <select id="cluster"><option value="tier">Follower tier</option><option value="age">Account age</option><option value="none">No clusters</option></select></label>
+    </div>
+    <div id="filters" class="filters" aria-label="Quick filters"></div>
+    <div id="atlas" class="atlas" aria-live="polite"></div>
+    <article id="detail" hidden></article>
+  </section>
+</main>
+<script>
+const format = n => new Intl.NumberFormat('en', {notation: n > 999 ? 'compact' : 'standard'}).format(n || 0);
+const median = xs => xs.sort((a,b)=>a-b)[Math.floor(xs.length/2)] || 0;
+const age = u => new Date(u.created_at || 0).getFullYear();
+const followers = u => u.public_metrics?.followers_count || 0;
+const text = u => `${u.name || ''} ${u.username || ''}`.toLowerCase();
+const filters = [
+  ['all', 'Everyone', () => true], ['verified', 'Verified', u => u.verified],
+  ['new', 'Joined < 3y', u => age(u) >= new Date().getFullYear() - 3],
+  ['small', '< 1k followers', u => followers(u) < 1000], ['large', '10k+ followers', u => followers(u) >= 10000],
+];
+function tier(u) { const n = followers(u); return n < 1000 ? 'Under 1k followers' : n < 10000 ? '1k–10k followers' : n < 100000 ? '10k–100k followers' : '100k+ followers'; }
+function vintage(u) { const y = age(u); return y < 2015 ? 'Before 2015' : y < 2020 ? '2015–2019' : y < 2023 ? '2020–2022' : '2023 onward'; }
+function make(tag, className, value) { const el = document.createElement(tag); if (className) el.className = className; if (value) el.textContent = value; return el; }
+fetch('/api/following').then(r => r.ok ? r.json() : Promise.reject()).then(snapshot => {
+  const users = snapshot.following || [], atlas = document.querySelector('#atlas'), detail = document.querySelector('#detail');
+  let currentFilter = 'all';
+  document.querySelector('#empty').hidden = true; document.querySelector('#dashboard').hidden = false;
+  document.querySelector('#count').textContent = format(users.length);
+  document.querySelector('#median').textContent = format(median(users.map(followers)));
+  document.querySelector('#recent').textContent = format(users.filter(u => age(u) >= new Date().getFullYear() - 3).length);
+  const filterBar = document.querySelector('#filters');
+  filters.forEach(([key, label]) => { const button = make('button', 'chip', label); button.dataset.filter = key; button.onclick = () => { currentFilter = key; draw(); }; filterBar.append(button); });
+  function showDetail(u) {
+    detail.replaceChildren(); detail.hidden = false;
+    const image = document.createElement('img'); image.src = u.profile_image_url || ''; image.alt = ''; image.onerror = () => image.remove();
+    const copy = document.createElement('div'), name = make('strong', '', u.name || u.username), link = document.createElement('a'); link.href = `https://x.com/${u.username}`; link.target = '_blank'; link.rel = 'noreferrer'; link.textContent = `@${u.username}`;
+    copy.append(name, link, make('p', '', `${format(followers(u))} followers · joined ${age(u)}`), make('p', '', u.description || 'No bio.'));
+    detail.append(image, copy);
+  }
+  function card(u) {
+    const button = document.createElement('button'), image = document.createElement('img'), initials = make('span', 'initials', (u.name || u.username || '?').slice(0, 2).toUpperCase());
+    button.className = 'person'; image.src = u.profile_image_url || ''; image.alt = ''; image.loading = 'lazy'; image.onerror = () => image.remove();
+    const copy = make('span', 'person-copy'), name = make('strong', '', u.name || u.username), handle = make('small', '', `@${u.username}`), metric = make('em', '', `${format(followers(u))} followers`);
+    copy.append(name, handle, metric); button.append(image, initials, copy); button.onclick = () => showDetail(u); return button;
+  }
+  function draw() {
+    const term = document.querySelector('#search').value.toLowerCase(), sort = document.querySelector('#sort').value, cluster = document.querySelector('#cluster').value;
+    const predicate = filters.find(([key]) => key === currentFilter)[2];
+    const visible = users.filter(u => predicate(u) && text(u).includes(term));
+    visible.sort((a,b) => sort === 'name' ? text(a).localeCompare(text(b)) : sort === 'newest' ? age(b)-age(a) : sort === 'oldest' ? age(a)-age(b) : followers(b)-followers(a));
+    atlas.replaceChildren();
+    document.querySelectorAll('.chip').forEach(b => b.classList.toggle('selected', b.dataset.filter === currentFilter));
+    const groups = new Map(); visible.forEach(u => { const label = cluster === 'tier' ? tier(u) : cluster === 'age' ? vintage(u) : 'Results'; groups.set(label, [...(groups.get(label) || []), u]); });
+    for (const [label, group] of groups) { const section = make('section', 'cluster'), heading = make('h2', '', label), count = make('span', '', format(group.length)); heading.append(count); const grid = make('div', 'people'); group.forEach(u => grid.append(card(u))); section.append(heading, grid); atlas.append(section); }
+  }
+  for (const id of ['search','sort','cluster']) document.querySelector('#'+id).oninput = draw;
+  draw();
+}).catch(() => {});
+</script>
+</body></html>

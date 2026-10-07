@@ -1,33 +1,35 @@
 # X Following Pruner
 
-A personal, policy-safe X following manager written in Go. It imports your complete following list into a local JSON snapshot for experimentation.
+A local Go app that imports and visualizes the accounts you follow on X.
 
-## Setup
+## One-time X setup
 
-1. Create an X developer app and copy its Bearer Token.
-2. Copy the local config:
+In the X Developer Console, add this callback URL to the existing app used by Poaster:
 
-   ```bash
-   cp .env.example .env.local
-   ```
-
-3. Set `X_BEARER_TOKEN` and `X_USERNAME` (without the `@`).
-
-## Import your following list
-
-```bash
-go run ./cmd/pruner fetch-following
+```text
+http://localhost:3000/auth/callback
 ```
 
-This writes `data/following.json`, which stays local and is ignored by Git.
+Copy that app's OAuth 2.0 Client ID and Client Secret into a local config:
 
-## Run the local UI
+```bash
+cp .env.example .env.local
+```
+
+```env
+X_CLIENT_ID=...
+X_CLIENT_SECRET=...
+```
+
+## Run
 
 ```bash
 go run ./cmd/pruner serve
 ```
 
-Open http://localhost:3000.
+Open http://localhost:3000 and choose **Import from X**. Approve the `follows.read` permission; the app imports your full following list into `data/following.json`, then displays the visualization.
+
+`data/following.json` and `.env.local` stay local and are ignored by Git.
 
 ## Verify
 
@@ -35,5 +37,3 @@ Open http://localhost:3000.
 go test ./...
 go build ./cmd/pruner
 ```
-
-The importer only reads X data. OAuth and unfollow actions remain out of scope for now.
