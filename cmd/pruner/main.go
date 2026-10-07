@@ -358,7 +358,7 @@ func (app *server) jev(writer http.ResponseWriter, request *http.Request) {
 		http.Error(writer, "Jev returned invalid JSON", http.StatusBadGateway)
 		return
 	}
-	var result jevResult
+	result := jevResult{Matches: []jevMatch{}}
 	for id, answer := range decision.Answers {
 		if answer.Type == "noul" && answer.Noul >= .5 {
 			result.Matches = append(result.Matches, jevMatch{ID: id, Reason: fmt.Sprintf("Jev match %.0f%%", answer.Noul*100), Score: answer.Noul})
