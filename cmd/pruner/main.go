@@ -84,6 +84,7 @@ type jevMatch struct {
 
 type jevResult struct {
 	Matches []jevMatch `json:"matches"`
+	Cost    float64    `json:"cost"`
 }
 
 func get(client *http.Client, endpoint, token string, target any) error {
@@ -353,12 +354,15 @@ func (app *server) jev(writer http.ResponseWriter, request *http.Request) {
 			Type string  `json:"type"`
 			Noul float64 `json:"noul"`
 		} `json:"answers"`
+		Usage struct {
+			Cost float64 `json:"cost"`
+		} `json:"usage"`
 	}
 	if err := json.NewDecoder(response.Body).Decode(&decision); err != nil {
 		http.Error(writer, "Jev returned invalid JSON", http.StatusBadGateway)
 		return
 	}
-	result := jevResult{Matches: []jevMatch{}}
+	result := jevResult{Matches: []jevMatch{}, Cost: decision.Usage.Cost}
 	for id, answer := range decision.Answers {
 		if answer.Type == "noul" && answer.Noul >= .5 {
 			result.Matches = append(result.Matches, jevMatch{ID: id, Reason: fmt.Sprintf("Jev match %.0f%%", answer.Noul*100), Score: answer.Noul})

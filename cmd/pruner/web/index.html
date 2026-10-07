@@ -13,7 +13,7 @@
       <label>Cluster <select id="cluster"><option value="tier">Follower tier</option><option value="age">Account age</option><option value="none">No clusters</option></select></label>
     </div>
     <div id="filters" class="filters" aria-label="Quick filters"></div>
-    <section class="jev"><label for="instruction">Ask Jev about these accounts</label><div><input id="instruction" placeholder="e.g. Find people building beautiful developer tools"><button id="ask-jev">Find matches</button></div><p id="jev-status">Jev analyzes the first 150 accounts in your current filter.</p><div id="jev-results" class="people" hidden></div></section>
+    <section class="jev"><label for="instruction">Ask Jev about these accounts</label><div><input id="instruction" placeholder="e.g. Find people building beautiful developer tools"><button id="ask-jev">Find matches</button><button id="scan-all" class="secondary">Scan all</button></div><p id="jev-status">Find matches analyzes 150 accounts; Scan all batches your full current filter.</p><div id="jev-results" class="people" hidden></div></section>
     <div id="atlas" class="atlas" aria-live="polite"></div>
     <article id="detail" hidden></article>
   </section>
@@ -55,11 +55,25 @@ fetch('/api/following').then(r => r.ok ? r.json() : Promise.reject()).then(snaps
     copy.append(name, handle, metric); link.append(image, initials, copy); return link;
   }
   let currentVisible = [];
-  async function askJev() {
+  async function askJev(scanAll = false) {
     const instruction = document.querySelector('#instruction').value.trim(), status = document.querySelector('#jev-status'), results = document.querySelector('#jev-results');
     if (!instruction) { status.textContent = 'Write an instruction first.'; return; }
-    status.textContent = 'Jev is reading the current filter…'; results.hidden = true;
-    try { const response = await fetch('/api/jev', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({instruction, ids:currentVisible.slice(0,150).map(u=>u.id)})}); const answer = await response.json(); if (!response.ok) throw new Error(answer.message || 'Jev could not answer.'); const byID = new Map(users.map(u=>[u.id,u])); results.replaceChildren(...(answer.matches || []).map(match => { const item = card(byID.get(match.id)); const reason = make('small','jev-reason',match.reason); item.querySelector('.person-copy').append(reason); return item; })); results.hidden = false; status.textContent = `${answer.matches.length} matches for “${instruction}”.`; } catch (error) { status.textContent = error.message; }
+    const ids = currentVisible.map(u => u.id), batches = [];
+    for (let i = 0; i < ids.length; i += 150) batches.push(ids.slice(i, i + 150));
+    const selected = scanAll ? batches : batches.slice(0, 1);
+    status.textContent = `Jev is reading batch 0 of ${selected.length}…`; results.hidden = true;
+    try {
+      const matches = [], byID = new Map(users.map(u => [u.id, u])); let cost = 0;
+      for (let i = 0; i < selected.length; i++) {
+        status.textContent = `Jev is reading batch ${i + 1} of ${selected.length}…`;
+        const response = await fetch('/api/jev', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({instruction, ids:selected[i]})});
+        const answer = await response.json(); if (!response.ok) throw new Error(answer.message || 'Jev could not answer.');
+        matches.push(...(answer.matches || [])); cost += answer.cost || 0;
+      }
+      matches.sort((a,b) => b.score - a.score);
+      results.replaceChildren(...matches.map(match => { const item = card(byID.get(match.id)); item.querySelector('.person-copy').append(make('small','jev-reason',match.reason)); return item; }));
+      results.hidden = false; status.textContent = `${matches.length} matches across ${selected.length} batch${selected.length === 1 ? '' : 'es'} · $${cost.toFixed(4)}.`;
+    } catch (error) { status.textContent = error.message; }
   }
   function draw() {
     const term = document.querySelector('#search').value.toLowerCase(), sort = document.querySelector('#sort').value, cluster = document.querySelector('#cluster').value;
@@ -73,7 +87,8 @@ fetch('/api/following').then(r => r.ok ? r.json() : Promise.reject()).then(snaps
     for (const [label, group] of groups) { const section = make('section', 'cluster'), heading = make('h2', '', label), count = make('span', '', format(group.length)); heading.append(count); const grid = make('div', 'people'); group.forEach(u => grid.append(card(u))); section.append(heading, grid); atlas.append(section); }
   }
   for (const id of ['search','sort','cluster']) document.querySelector('#'+id).oninput = draw;
-  document.querySelector('#ask-jev').onclick = askJev;
+  document.querySelector('#ask-jev').onclick = () => askJev();
+  document.querySelector('#scan-all').onclick = () => askJev(true);
   draw();
 }).catch(() => {});
 </script>
