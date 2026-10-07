@@ -56,18 +56,16 @@ fetch('/api/following').then(r => r.ok ? r.json() : Promise.reject()).then(snaps
     const ids = currentVisible.map(u => u.id), batches = [];
     for (let i = 0; i < ids.length; i += 150) batches.push(ids.slice(i, i + 150));
     const selected = scanAll ? batches : batches.slice(0, 1);
-    status.textContent = `Jev is reading batch 0 of ${selected.length}…`; results.hidden = true;
+    status.textContent = `Jev is reading batch 1 of ${selected.length}…`; results.replaceChildren(); results.hidden = false;
     try {
       const matches = [], byID = new Map(users.map(u => [u.id, u])); let cost = 0;
       for (let i = 0; i < selected.length; i++) {
-        status.textContent = `Jev is reading batch ${i + 1} of ${selected.length}…`;
         const response = await fetch('/api/jev', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({instruction, ids:selected[i]})});
         const answer = await response.json(); if (!response.ok) throw new Error(answer.message || 'Jev could not answer.');
-        matches.push(...(answer.matches || [])); cost += answer.cost || 0;
+        matches.push(...(answer.matches || [])); cost += answer.cost || 0; matches.sort((a,b) => b.score - a.score);
+        results.replaceChildren(...matches.map(match => resultCard(byID.get(match.id), match)));
+        status.textContent = `${matches.length} matches after ${i + 1} of ${selected.length} batch${selected.length === 1 ? '' : 'es'} · $${cost.toFixed(4)}.`;
       }
-      matches.sort((a,b) => b.score - a.score);
-      results.replaceChildren(...matches.map(match => resultCard(byID.get(match.id), match)));
-      results.hidden = false; status.textContent = `${matches.length} matches across ${selected.length} batch${selected.length === 1 ? '' : 'es'} · $${cost.toFixed(4)}.`;
     } catch (error) { status.textContent = error.message; }
   }
   function draw() {
