@@ -49,10 +49,10 @@ fetch('/api/following').then(r => r.ok ? r.json() : Promise.reject()).then(snaps
     detail.append(image, copy);
   }
   function card(u) {
-    const button = document.createElement('button'), image = document.createElement('img'), initials = make('span', 'initials', (u.name || u.username || '?').slice(0, 2).toUpperCase());
-    button.className = 'person'; image.src = u.profile_image_url || ''; image.alt = ''; image.loading = 'lazy'; image.onerror = () => image.remove();
+    const link = document.createElement('a'), image = document.createElement('img'), initials = make('span', 'initials', (u.name || u.username || '?').slice(0, 2).toUpperCase());
+    link.className = 'person'; link.href = `https://x.com/${u.username}`; link.target = '_blank'; link.rel = 'noopener noreferrer'; image.src = u.profile_image_url || ''; image.alt = ''; image.loading = 'lazy'; image.onerror = () => image.remove();
     const copy = make('span', 'person-copy'), name = make('strong', '', u.name || u.username), handle = make('small', '', `@${u.username}`), metric = make('em', '', `${format(followers(u))} followers`);
-    copy.append(name, handle, metric); button.append(image, initials, copy); button.onclick = () => showDetail(u); return button;
+    copy.append(name, handle, metric); link.append(image, initials, copy); return link;
   }
   let currentVisible = [];
   async function askJev() {
