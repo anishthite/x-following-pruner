@@ -13,9 +13,8 @@
       <label>Cluster <select id="cluster"><option value="tier">Follower tier</option><option value="age">Account age</option><option value="none">No clusters</option></select></label>
     </div>
     <div id="filters" class="filters" aria-label="Quick filters"></div>
-    <section class="jev"><label for="instruction">Ask Jev about this filtered set</label><div><input id="instruction" placeholder="e.g. Find people building beautiful developer tools"><button id="ask-jev">Find matches</button><button id="scan-all" class="secondary">Scan all</button></div><p id="jev-status">Find matches analyzes 150 accounts; Scan all batches your full current filter.</p><div id="jev-results" class="people" hidden></div></section></section>
+    <section class="jev"><label for="instruction">Ask Jev about this filtered set</label><div><input id="instruction" placeholder="e.g. Find people building beautiful developer tools"><button id="ask-jev">Find matches</button><button id="scan-all" class="secondary">Scan all</button></div><p id="jev-status">Find matches analyzes 150 accounts; Scan all batches your full current filter.</p><div id="jev-results" class="results-grid" hidden></div></section></section>
     <div id="atlas" class="atlas" aria-live="polite"></div>
-    <article id="detail" hidden></article>
   </section>
 </main>
 <script>
@@ -41,18 +40,14 @@ fetch('/api/following').then(r => r.ok ? r.json() : Promise.reject()).then(snaps
   document.querySelector('#recent').textContent = format(users.filter(u => age(u) >= new Date().getFullYear() - 3).length);
   const filterBar = document.querySelector('#filters');
   filters.forEach(([key, label]) => { const button = make('button', 'chip', label); button.dataset.filter = key; button.onclick = () => { currentFilter = key; draw(); }; filterBar.append(button); });
-  function showDetail(u) {
-    detail.replaceChildren(); detail.hidden = false;
-    const image = document.createElement('img'); image.src = u.profile_image_url || ''; image.alt = ''; image.onerror = () => image.remove();
-    const copy = document.createElement('div'), name = make('strong', '', u.name || u.username), link = document.createElement('a'); link.href = `https://x.com/${u.username}`; link.target = '_blank'; link.rel = 'noreferrer'; link.textContent = `@${u.username}`;
-    copy.append(name, link, make('p', '', `${format(followers(u))} followers · joined ${age(u)}`), make('p', '', u.description || 'No bio.'));
-    detail.append(image, copy);
-  }
   function card(u) {
     const link = document.createElement('a'), image = document.createElement('img'), initials = make('span', 'initials', (u.name || u.username || '?').slice(0, 2).toUpperCase());
     link.className = 'person'; link.href = `https://x.com/${u.username}`; link.target = '_blank'; link.rel = 'noopener noreferrer'; image.src = u.profile_image_url || ''; image.alt = ''; image.loading = 'lazy'; image.onerror = () => image.remove();
     const copy = make('span', 'person-copy'), name = make('strong', '', u.name || u.username), handle = make('small', '', `@${u.username}`), metric = make('em', '', `${format(followers(u))} followers`);
     copy.append(name, handle, metric); link.append(image, initials, copy); return link;
+  }
+  function resultCard(u, match) {
+    const link = card(u); link.classList.add('result-card'); link.querySelector('.person-copy').append(make('span', 'score', `${Math.round(match.score * 100)}% match`)); return link;
   }
   let currentVisible = [];
   async function askJev(scanAll = false) {
@@ -71,7 +66,7 @@ fetch('/api/following').then(r => r.ok ? r.json() : Promise.reject()).then(snaps
         matches.push(...(answer.matches || [])); cost += answer.cost || 0;
       }
       matches.sort((a,b) => b.score - a.score);
-      results.replaceChildren(...matches.map(match => { const item = card(byID.get(match.id)); item.querySelector('.person-copy').append(make('small','jev-reason',match.reason)); return item; }));
+      results.replaceChildren(...matches.map(match => resultCard(byID.get(match.id), match)));
       results.hidden = false; status.textContent = `${matches.length} matches across ${selected.length} batch${selected.length === 1 ? '' : 'es'} · $${cost.toFixed(4)}.`;
     } catch (error) { status.textContent = error.message; }
   }
