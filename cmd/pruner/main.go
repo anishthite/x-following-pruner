@@ -409,9 +409,16 @@ func serve() error {
 	mux.HandleFunc("/auth/callback", app.callback)
 	mux.HandleFunc("/api/following", following)
 	mux.HandleFunc("/api/jev", app.jev)
-	mux.Handle("/", http.FileServer(http.FS(subtree)))
+	mux.Handle("/", noCache(http.FileServer(http.FS(subtree))))
 	fmt.Println("Serving http://localhost:3000")
 	return http.ListenAndServe(":3000", mux)
+}
+
+func noCache(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.Header().Set("Cache-Control", "no-store")
+		next.ServeHTTP(writer, request)
+	})
 }
 
 func envOr(name, fallback string) string {
